@@ -36,9 +36,9 @@ def modular_inverse(a, m):
 	if a == 1:
 		return c
 
-def hash_password(password):
+def hash_password(password, distinguish=""):
 	for i in xrange(1024):
-		password = hashlib.sha256("cstore:1:" + password).hexdigest()
+		password = hashlib.sha256("cstore:1:" + distinguish + password).hexdigest()
 	return password
 
 class CryptoLink:
@@ -109,13 +109,16 @@ if __name__ == "__main__":
 	import getpass, sys
 	if len(sys.argv) == 1:
 		password = getpass.getpass("Password: ")
-		print "Main login:", hash_password("main-login" + password)
+		print "Main login:", hash_password(password, distinguish="main-login")
 	elif len(sys.argv) == 2:
+		import json
+		with open("cstore_config.json") as fd:
+			config = json.load(fd)
 		data = open(sys.argv[1]).read()
 		password = getpass.getpass("Signal: ")
-		recv = hash_password("signal-client" + password)
-		signal_hash = hash_password("signal-server" + recv)
-		encryption_key = hash_password("signal-encryption" + recv)
+		recv = hash_password(password, distinguish="signal-client")
+		signal_hash = hash_password(recv, distinguish="signal-address" + config["salt"])
+		encryption_key = hash_password(recv, distinguish="signal-key" + config["salt"])
 		with open("signals/" + signal_hash, "w") as fd:
 			fd.write(encrypt(data, encryption_key))
 	else:

@@ -9,7 +9,7 @@ if len(sys.argv) != 2:
 
 def get_hashed_pass(prompt, distinguish):
 	password = getpass.getpass(prompt)
-	password = cs_proto.hash_password(distinguish+password)
+	password = cs_proto.hash_password(password, distinguish)
 	return password
 
 s = socket.create_connection((sys.argv[1], 50666))
@@ -22,17 +22,48 @@ if not link.handshake(password):
 
 while True:
 	command = raw_input("> ")
-	if command == "passwd":
-		password = get_hashed_pass("New password: ", "main-login")
-		link.put("passwd"+password)
-	elif command == "signal":
-		password = get_hashed_pass("Signal code: ", "signal-client")
-		link.put("signal"+password)
-	else:
-		link.put(command)
-	value = link.get()
-	if value is None:
-		print "Terminated."
-		break
-	print value
+	if command.endswith(":"):
+		command += getpass.getpass("Secret entropy: ")
+	command = cs_proto.hash_password(command, distinguish="signal-client")
+	link.put(":" + command)
+	while True:
+		schema = link.get()
+		if schema is None:
+			print "Terminated."
+			exit()
+		elif schema.startswith(":"):
+			print schema[1:]
+		elif schema.startswith("prompt:"):
+			link.put(raw_input("*string* " + schema[7:]))
+		elif schema.startswith("password:"):
+			distinguish, prompt = schema[9:].split(":", 1)
+			link.put(get_hashed_pass("[%s] " % distinguish + prompt, distinguish=distinguish))
+		elif schema.startswith("file:"):
+			prompt = schema[5:]
+			while True:
+				path = raw_input("*load file* " + prompt)
+				try:
+					with open(path) as fd:
+						data = fd.read()
+				except IOError, e:
+					print "Error:", e
+					continue
+				break
+			link.put(data)
+		elif schema.startswith("download:"):
+			print "Downloading content from server."
+			data = link.get()
+			print "Downloaded."
+			prompt = schema[9:]
+			while True:
+				path = raw_input("*save file* " + prompt)
+				try:
+					with open(path, "w") as fd:
+						fd.write(data)
+				except IOError, e:
+					print "Error:", e
+					continue
+				break
+		elif schema == "done":
+			break
 
