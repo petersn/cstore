@@ -57,7 +57,7 @@ class CryptoLink:
 		gx = pow(base, exponent, dh_modulus)
 		self._send_num(gx)
 		gy = self._recv_num()
-		assert gy != 1
+		assert gy > 1
 		gxy = pow(gy, exponent, dh_modulus)
 		return gxy
 
